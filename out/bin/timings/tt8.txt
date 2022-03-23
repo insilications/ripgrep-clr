@@ -1,0 +1,50 @@
+subtitles_en_literal (pattern: Sherlock Holmes)
+-----------------------------------------------
+rg*                   0.042 +/- 0.001 (lines: 497)*
+rg (no mmap)          0.053 +/- 0.001 (lines: 497)
+rg (lines)            0.065 +/- 0.000 (lines: 497)
+rg UTF-16             0.127 +/- 0.000 (lines: 497)
+rg (no mmap) UTF-16   0.141 +/- 0.000 (lines: 497)
+rg (lines) UTF-16     0.128 +/- 0.000 (lines: 497)
+
+subtitles_en_literal_casei (pattern: Sherlock Holmes)
+-----------------------------------------------------
+rg*                 0.082 +/- 0.001 (lines: 500)*
+rg (lines)          0.105 +/- 0.000 (lines: 500)
+rg UTF-16           0.172 +/- 0.001 (lines: 500)
+rg (lines) UTF-16   0.174 +/- 0.000 (lines: 500)
+
+subtitles_en_literal_word (pattern: Sherlock Holmes)
+----------------------------------------------------
+rg (ASCII)*         0.065 +/- 0.000 (lines: 497)*
+rg                  0.068 +/- 0.000 (lines: 497)
+rg (ASCII) UTF-16   0.129 +/- 0.000 (lines: 497)
+rg UTF-16           0.132 +/- 0.000 (lines: 497)
+
+subtitles_en_alternate (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+---------------------------------------------------------------------------------------------------------------
+rg (lines)          0.092 +/- 0.000 (lines: 672)
+rg*                 0.068 +/- 0.000 (lines: 672)*
+rg (lines) UTF-16   0.160 +/- 0.000 (lines: 672)
+rg UTF-16           0.155 +/- 0.000 (lines: 672)
+
+subtitles_en_alternate_casei (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+---------------------------------------------------------------------------------------------------------------------
+rg*         0.175 +/- 0.000 (lines: 675)*
+rg UTF-16   0.253 +/- 0.001 (lines: 675)
+
+subtitles_en_surrounding_words (pattern: \w+\s+Holmes\s+\w+)
+------------------------------------------------------------
+rg                  0.068 +/- 0.000 (lines: 220)
+rg (ASCII)*         0.066 +/- 0.000 (lines: 220)*
+rg UTF-16           0.131 +/- 0.000 (lines: 220)
+rg (ASCII) UTF-16   0.128 +/- 0.000 (lines: 220)
+
+subtitles_en_no_literal (pattern: \w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5})
+----------------------------------------------------------------------------------------
+rg                  0.684 +/- 0.001 (lines: 3)
+rg (ASCII)*         0.590 +/- 0.001 (lines: 3)*
+rg UTF-16           0.773 +/- 0.001 (lines: 3)
+rg (ASCII) UTF-16   0.680 +/- 0.000 (lines: 3)
+
+Totals: 5.504 +/- 0.009

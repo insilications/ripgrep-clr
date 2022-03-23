@@ -1,0 +1,89 @@
+boni@insilications /insilications/apps/ripgrep-clr/out/bin (patched) $ llvm-bolt ./rg -o=./bolt --data=/var/tmp/pgo/combined.fdata --relocs=1 --lite=0 --reorder-blocks=ext-tsp --tsp-threshold=20 --sctc-mode=always --reorder-functions=hfsort+ --use-edge-counts=1 --reorder-functions-use-hot-size=1 --reorder-data-algo=count --cg-ignore-recursive-calls=1 --cg-from-perf-data=1 --align-functions=32 --align-functions-max-bytes=32 --use-compact-aligner=1 --split-align-threshold=2 --split-functions=3 --split-all-cold=1 --split-eh=1 --icf=1 --plt=all --hot-data=1 --elim-link-veneers=1 --align-macro-fusion=hot --jump-tables=split --dyno-stats --print-profile-stats=1 --print-all-options=1 --print-cache-metrics=1 --profile-ignore-hash=1 --bolt-info=1 --use-gnu-stack=1 --fix-block-counts=1 --eliminate-unreachable=1
+BOLT-INFO: Target architecture: x86_64
+BOLT-INFO: BOLT version: 2f0a634c5e80ca8625dfb6f505ef7947309078f9
+BOLT-INFO: first alloc address is 0x200000
+BOLT-WARNING: debug info will be stripped from the binary. Use -update-debug-sections to keep it.
+BOLT-INFO: enabling relocation mode
+BOLT-INFO: static input executable detected
+BOLT-ERROR: function __restore_rt/1 is in conflict with FDE [5e1b0f, 5e1b19). Skipping.
+BOLT-WARNING: sizes differ for function __clone/1. FDE : 52; symbol table : 95. Using max size.
+BOLT-WARNING: sizes differ for function clone. FDE : 52; symbol table : 95. Using max size.
+BOLT-ERROR: function _dl_tlsdesc_undefweak/1 is in conflict with FDE [694019, 694032). Skipping.
+BOLT-WARNING: FDE [0x65dfde, 0x65dfee) conflicts with function __clone/1(*3)
+BOLT-WARNING: FDE [0x65dfee, 0x65dfff) conflicts with function __clone/1(*3)
+BOLT-WARNING: split function detected on input : __assert_fail_base.cold/1. The support is limited in relocation mode.
+BOLT-ERROR: symbol seen in the middle of the function __BOLT_FDE_FUNCat5e1b0f. Skipping.
+BOLT-ERROR: symbol seen in the middle of the function __BOLT_FDE_FUNCat694019. Skipping.
+BOLT-INFO: pre-processing profile using branch profile reader
+BOLT-WARNING: ignored 14 functions due to cold fragments
+BOLT-INFO: 524 out of 3049 functions in the binary (17.2%) have non-empty execution profile
+BOLT-INFO: 26 functions with profile could not be optimized
+BOLT-INFO: profile for 1 objects was ignored
+BOLT-INFO: the input contains 2241 (dynamic count : 2673912) opportunities for macro-fusion optimization. Will fix instances on a hot path.
+BOLT-INFO: Profile bias score: 3.0514% StDev: 12.3365%
+BOLT-INFO: 175862 instructions were shortened
+BOLT-INFO: removed 6339 empty blocks
+BOLT-INFO: merged 1 duplicate CFG edge
+BOLT-INFO: removed 1 'repz' prefixes with estimated execution count of 0 times.
+BOLT-INFO: ICF folded 208 out of 3049 functions in 4 passes. 1 functions had jump tables.
+BOLT-INFO: Removing all identical functions will save 27.04 KB of code space. Folded functions were called 301 times based on profile.
+BOLT-INFO: basic block reordering modified layout of 331 (11.65%) functions
+BOLT-INFO: UCE removed 3 blocks and 15 bytes of code.
+BOLT-INFO: splitting separates 771802 hot bytes from 1831910 cold bytes (29.64% of split functions is hot).
+BOLT-INFO: 28 Functions were reordered by LoopInversionPass
+BOLT-INFO: hfsort+ reduced the number of chains from 536 to 82
+BOLT-INFO: program-wide dynostats after all optimizations before SCTC and FOP:
+
+          1448227025 : executed forward branches
+            40607169 : taken forward branches
+           482962377 : executed backward branches
+           430229830 : taken backward branches
+            18966094 : executed unconditional branches
+            15012304 : all function calls
+             3192331 : indirect calls
+                   0 : PLT calls
+         12083580981 : executed instructions
+          3192598807 : executed load instructions
+           414314992 : executed store instructions
+             5914152 : taken jump table branches
+                   0 : taken unknown indirect branches
+          1950155496 : total branches
+           489803093 : taken branches
+          1460352403 : non-taken conditional branches
+           470836999 : taken conditional branches
+          1931189402 : all conditional branches
+
+           583108065 : executed forward branches (-59.7%)
+            11628026 : taken forward branches (-71.4%)
+          1348081337 : executed backward branches (+179.1%)
+           206160916 : taken backward branches (-52.1%)
+           221112254 : executed unconditional branches (+1065.8%)
+            15012304 : all function calls (=)
+             3192331 : indirect calls (=)
+                   0 : PLT calls (=)
+         11975158106 : executed instructions (-0.9%)
+          3192598807 : executed load instructions (=)
+           414314992 : executed store instructions (=)
+             5914152 : taken jump table branches (=)
+                   0 : taken unknown indirect branches (=)
+          2152301656 : total branches (+10.4%)
+           438901196 : taken branches (-10.4%)
+          1713400460 : non-taken conditional branches (+17.3%)
+           217788942 : taken conditional branches (-53.7%)
+          1931189402 : all conditional branches (=)
+
+BOLT-INFO: SCTC: patched 178 tail calls (178 forward) tail calls (0 backward) from a total of 178 while removing 4 double jumps and removing 172 basic blocks totalling 854 bytes of code. CTCs total execution count is 5784 and the number of times CTCs are taken is 4658.
+BOLT-INFO: cache metrics after emitting functions:
+  There are 2841 functions; 536 (18.87%) are in the hot section, 536 (18.87%) have profile
+  There are 317496 basic blocks; 43218 (13.61%) are in the hot section
+  Hot code takes 73.24% of binary (10538520 bytes out of 14388586, 5.03 huge pages)
+  Expected i-TLB cache hit ratio: 99.39%
+  TSP score: 2100527518
+  ExtTSP score: 2100762282
+BOLT-INFO: setting _end to 0x9ca090
+BOLT-INFO: setting __hot_start to 0xa00000
+BOLT-INFO: setting __hot_end to 0xb2acf6
+BOLT-INFO: setting __hot_data_start to 0x0
+BOLT-INFO: setting __hot_data_end to 0x0
+BOLT-INFO: patched build-id (flipped last bit)
+boni@insilications /insilications/apps/ripgrep-clr/out/bin (patched) $

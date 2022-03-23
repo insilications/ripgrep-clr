@@ -1,0 +1,109 @@
+llvm-bolt ./rg -o=./rg.bolt --data=/var/tmp/pgo/combined.fdata --relocs=1 --lite=0 --reorder-blocks=cache+ --tsp-threshold=22 --reorder-functions=hfsort+ --reorder-functions-use-hot-size=1 --reorder-data-algo=count --cg-use-split-hot-size=1 --cg-ignore-recursive-calls=1 --cg-from-perf-data=1 --align-blocks=1 --align-blocks-min-size=0 --align-blocks-threshold=800 --align-functions=32 --use-compact-aligner=1 --align-functions-max-bytes=48 --split-align-threshold=2 --split-functions=3 --split-all-cold=1 --split-eh=1 --indirect-call-promotion=all --icf=1 --plt=all --hot-data=1 --elim-link-veneers=1 --icp-eliminate-loads=1 --icp-top-callsites=0 --indirect-call-promotion-calls-topn=0 --indirect-call-promotion-jump-tables-topn=0 --indirect-call-promotion-topn=0 --inline-all=1 --inline-ap=1 --inline-max-iters=30 --inline-limit=0 --peepholes=all --align-macro-fusion=all --frame-opt=all --simplify-rodata-loads=1 --simplify-conditional-tail-calls=1 --jump-tables=aggressive --eliminate-unreachable=1 --dyno-stats --print-profile-stats=1 --bolt-info=1 --use-gnu-stack=1 --fix-block-counts=1
+BOLT-INFO: Target architecture: x86_64
+BOLT-INFO: BOLT version: ff3f4988ed5837d1a99b3dd6bb10acc0aefab60a
+BOLT-INFO: first alloc address is 0x200000
+BOLT-WARNING: debug info will be stripped from the binary. Use -update-debug-sections to keep it.
+BOLT-INFO: enabling relocation mode
+BOLT-INFO: static input executable detected
+BOLT-ERROR: function __restore_rt/1 is in conflict with FDE [4a2aaf, 4a2ab9). Skipping.
+BOLT-WARNING: sizes differ for function __clone/1. FDE : 52; symbol table : 95. Using max size.
+BOLT-WARNING: sizes differ for function clone. FDE : 52; symbol table : 95. Using max size.
+BOLT-ERROR: function _dl_tlsdesc_undefweak/1 is in conflict with FDE [555759, 555772). Skipping.
+BOLT-WARNING: FDE [0x51f75e, 0x51f76e) conflicts with function __clone/1(*3)
+BOLT-WARNING: FDE [0x51f76e, 0x51f77f) conflicts with function __clone/1(*3)
+BOLT-WARNING: split function detected on input : __assert_fail_base.cold/1. The support is limited in relocation mode.
+BOLT-ERROR: symbol seen in the middle of the function __BOLT_FDE_FUNCat4a2aaf. Skipping.
+BOLT-ERROR: symbol seen in the middle of the function __BOLT_FDE_FUNCat555759. Skipping.
+BOLT-INFO: pre-processing profile using branch profile reader
+BOLT-WARNING: ignored 14 functions due to cold fragments
+BOLT-INFO: 716 out of 4180 functions in the binary (17.1%) have non-empty execution profile
+BOLT-INFO: 5 functions with profile could not be optimized
+BOLT-INFO: profile for 1 objects was ignored
+BOLT-INFO: the input contains 1320 (dynamic count : 1368627) opportunities for macro-fusion optimization that are going to be fixed
+BOLT-INFO: Profile bias score: 3.0961% StDev: 14.9155%
+BOLT-INFO: 85187 instructions were shortened
+BOLT-INFO: removed 5922 empty blocks
+BOLT-INFO: merged 1 duplicate CFG edge
+BOLT-INFO: removed 1 'repz' prefixes with estimated execution count of 0 times.
+BOLT-INFO: ICF folded 243 out of 4180 functions in 5 passes. 2 functions had jump tables.
+BOLT-INFO: Removing all identical functions will save 24.15 KB of code space. Folded functions were called 178 times based on profile.
+BOLT-INFO: ICP total indirect callsites with profile = 475
+BOLT-INFO: ICP total jump table callsites = 278
+BOLT-INFO: ICP total number of calls = 16095352
+BOLT-INFO: ICP percentage of calls that are indirect = 0.6%
+BOLT-INFO: ICP percentage of indirect calls that can be optimized = 21.2%
+BOLT-INFO: ICP percentage of indirect callsites that are optimized = 40.6%
+BOLT-INFO: ICP number of method load elimination candidates = 12
+BOLT-INFO: ICP percentage of method calls candidates that have loads eliminated = 0.0%
+BOLT-INFO: ICP percentage of indirect branches that are optimized = 99.8%
+BOLT-INFO: ICP percentage of jump table callsites that are optimized = 37.4%
+BOLT-INFO: ICP number of jump table callsites that can use hot indices = 117
+BOLT-INFO: ICP percentage of jump table callsites that use hot indices = 14.5%
+BOLT-INFO: simplified 201 out of 5158 loads from a statically computed address.
+BOLT-INFO: dynamic loads simplified: 473
+BOLT-INFO: dynamic loads found: 843895
+BOLT-INFO: inlined 2173240 calls at 2786 call sites in 3 iteration(s). Change in binary size: 294230 bytes.
+BOLT-INFO: ICF folded 3 out of 3937 functions in 3 passes. 0 functions had jump tables.
+BOLT-INFO: Removing all identical functions will save 0.01 KB of code space. Folded functions were called 0 times based on profile.
+BOLT-INFO: basic block reordering modified layout of 442 (11.24%) functions
+BOLT-INFO: UCE removed 23 blocks and 15 bytes of code.
+BOLT-INFO: splitting separates 705479 hot bytes from 1062077 cold bytes (39.91% of split functions is hot).
+BOLT-INFO: 27 Functions were reordered by LoopInversionPass
+BOLT-INFO: hfsort+ reduced the number of chains from 701 to 154
+BOLT-INFO: program-wide dynostats after all optimizations before SCTC and FOP:
+
+           790846458 : executed forward branches
+            25081080 : taken forward branches
+           180221405 : executed backward branches
+           175077333 : taken backward branches
+             7343979 : executed unconditional branches
+            16095352 : all function calls
+             6555911 : indirect calls
+                   0 : PLT calls
+          6066146946 : executed instructions
+          1641300247 : executed load instructions
+           367665866 : executed store instructions
+             1828750 : taken jump table branches
+                   0 : taken unknown indirect branches
+           978411842 : total branches
+           207502392 : taken branches
+           770909450 : non-taken conditional branches
+           200158413 : taken conditional branches
+           971067863 : all conditional branches
+
+           409205568 : executed forward branches (-48.3%)
+             4589473 : taken forward branches (-81.7%)
+           564554734 : executed backward branches (+213.3%)
+            97053782 : taken backward branches (-44.6%)
+            76989281 : executed unconditional branches (+948.3%)
+            13924571 : all function calls (-13.5%)
+             6534906 : indirect calls (-0.3%)
+                   0 : PLT calls (=)
+          6000624816 : executed instructions (-1.1%)
+          1639482637 : executed load instructions (-0.1%)
+           367671128 : executed store instructions (+0.0%)
+               14886 : taken jump table branches (-99.2%)
+                   0 : taken unknown indirect branches (=)
+          1050749583 : total branches (+7.4%)
+           178632536 : taken branches (-13.9%)
+           872117047 : non-taken conditional branches (+13.1%)
+           101643255 : taken conditional branches (-49.2%)
+           973760302 : all conditional branches (+0.3%)
+
+BOLT-INFO: SCTC: patched 88 tail calls (87 forward) tail calls (1 backward) from a total of 88 while removing 10 double jumps and removing 92 basic blocks totalling 445 bytes of code. CTCs total execution count is 488 and the number of times CTCs are taken is 123.
+BOLT-INFO: Peephole: 2177 double jumps patched.
+BOLT-INFO: Peephole: 106 tail call traps inserted.
+BOLT-INFO: Peephole: 0 useless conditional branches removed.
+BOLT-INFO: FOP optimized 28 redundant load(s) and 0 unused store(s)
+BOLT-INFO: FOP changed 28 load(s) to use a register instead of a stack access, and 0 to use an immediate.
+BOLT-INFO: FOP deleted 12 load(s) and 0 store(s).
+BOLT-INFO: FRAME ANALYSIS: 79 function(s) (0.1% dyn cov) were not optimized.
+BOLT-INFO: FRAME ANALYSIS: 1937 function(s) (82.5% dyn cov) could not have its frame indices restored.
+BOLT-INFO: Shrink wrapping moved 48 spills inserting load/stores and 1 spills inserting push/pops
+BOLT-INFO: Allocation combiner: 74 empty spaces coalesced.
+BOLT-INFO: setting _end to 0x7150b0
+BOLT-INFO: setting __hot_start to 0x800000
+BOLT-INFO: setting __hot_end to 0x8b20b1
+BOLT-INFO: setting __hot_data_start to 0x0
+BOLT-INFO: setting __hot_data_end to 0x0
+BOLT-INFO: patched build-id (flipped last bit)

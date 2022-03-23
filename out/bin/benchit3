@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+num=1
+
+usage_error () { echo >&2 "$(basename $0):  $1"; exit 2; }
+assert_argument () { test "$1" != "$EOL" || usage_error "$2 requires an argument"; }
+
+if [ "$#" != 0 ]; then
+  EOL=$(echo '\01\03\03\07')
+  set -- "$@" "$EOL"
+  while [ "$1" != "$EOL" ]; do
+    opt="$1"; shift
+    case "$opt" in
+
+      # Your options go here.
+      -n|--num) assert_argument "$1" "$opt"; num="$1"; shift;;
+
+      # Arguments processing. You may remove any unneeded line after the 1st.
+      -|''|[!-]*) set -- "$@" "$opt";;                                          # positional argument, rotate to the end
+      --*=*)      set -- "${opt%%=*}" "${opt#*=}" "$@";;                        # convert '--name=arg' to '--name' 'arg'
+      -[!-]?*)    set -- $(echo "${opt#-}" | sed 's/\(.\)/ -\1/g') "$@";;       # convert '-abc' to '-a' '-b' '-c'
+      --)         while [ "$1" != "$EOL" ]; do set -- "$@" "$1"; shift; done;;  # process remaining arguments as positional
+      -*)         usage_error "unknown option: '$opt'";;                        # catch misspelled options
+      *)          usage_error "this should NEVER happen ($opt)";;               # sanity test for previous patterns
+
+    esac
+  done
+  shift  # $EOL
+fi
+
+ocperfrunsettings --perf_event_paranoid=-1 --perf_event_max_stack=1000 --perf_event_max_contexts_per_stack=16 --perf_event_mlock_kb=1028 --perf_cpu_time_max_percent=0 --perf_event_max_sample_rate=110000
+
+declare -a COMMAND_LIST;
+BAR_OPT="--eta --progress --bar";
+
+for (( c=1; c<=$num; c++ ))
+do
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --no-mmap 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --no-mmap 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -i 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -i -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -i 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -i -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '(?-u:\b)Sherlock Holmes(?-u:\b)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -nw 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '(?-u:\b)Sherlock Holmes(?-u:\b)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -nw 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n -i 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n -i 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '(?-u)\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '(?-u)\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '(?-u)\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg -n '(?-u)\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --help");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --pcre2 --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --pcre2 --count-matches 'test(?=ing)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --pcre2 --count-matches '(?<=pro)testing' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --pcre2 --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --pcre2 --count-matches 'test(?=ing)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --pcre2 --count-matches '(?<=pro)testing' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+    COMMAND_LIST+=("ocperfrun --mem --verbose --freq=110000 --dir=/var/tmp/pgo/ -- /insilications/apps/ripgrep-clr/out/bin/rg --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt");
+done
+
+# for i in "${!COMMAND_LIST[@]}"; do
+#     printf '%s\n' "${COMMAND_LIST[i]}";
+# done
+
+if [[ "${#COMMAND_LIST[@]}" > 0 ]]; then
+    parallel --tmpdir /insilications/tmp/ ${BAR_OPT:+${BAR_OPT}} --nice -10 --halt now,fail=1 --jobs 1 ::: "${COMMAND_LIST[@]}";
+fi
+
+pw-play /usr/share/sounds/Oxygen-Im-New-Mail.ogg;
+

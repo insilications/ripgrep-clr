@@ -3,6 +3,8 @@
 '''
 benchsuite is a benchmark runner for comparing command line search tools.
 '''
+import shutup
+shutup.please()
 
 import argparse
 import csv
@@ -15,6 +17,21 @@ import statistics
 import subprocess
 import sys
 import time
+import numpy as np
+from scipy import stats
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FormatStrFormatter
+import matplotlib.ticker
+import seaborn as sns
+import pandas as pd
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
+import configparser
+from simple_file_checksum import get_checksum
+import hashlib
+
+import warnings
+warnings.filterwarnings("ignore")
 
 # Some constants for identifying the corpora we use to run tests.
 # We establish two very different kinds of corpora: a small number of large
@@ -24,10 +41,11 @@ import time
 
 SUBTITLES_DIR = 'subtitles'
 SUBTITLES_EN_NAME = 'en.txt'
-SUBTITLES_EN_NAME_SAMPLE = 'en.sample.txt'
+SUBTITLES_EN_NAME16 = 'en16.txt'
+SUBTITLES_EN_NAME_SAMPLE = 'en.txt'
 SUBTITLES_EN_NAME_GZ = '%s.gz' % SUBTITLES_EN_NAME
 # SUBTITLES_EN_URL = 'http://opus.lingfil.uu.se/OpenSubtitles2016/mono/OpenSubtitles2016.raw.en.gz'  # noqa
-SUBTITLES_EN_URL = 'https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2016/mono/en.txt.gz'  # noqa
+SUBTITLES_EN_URL = './en.txt.gz'  # noqa
 SUBTITLES_RU_NAME = 'ru.txt'
 SUBTITLES_RU_NAME_GZ = '%s.gz' % SUBTITLES_RU_NAME
 # SUBTITLES_RU_URL = 'http://opus.lingfil.uu.se/OpenSubtitles2016/mono/OpenSubtitles2016.raw.ru.gz'  # noqa
@@ -51,617 +69,368 @@ SIFT = [
     '--exclude-files', '*.pdf',
 ]
 
-
-def bench_linux_literal_default(suite_dir):
-    '''
-    Benchmark the speed of a literal using *default* settings.
-
-    This is a purposefully unfair benchmark for use in performance
-    analysis, but it is pedagogically useful to demonstrate how default
-    behaviors differ. For example, ugrep and grep don't do any smart
-    filtering by default, so they will invariably search more files
-    than ripgrep, ag or git grep.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = 'PM_RESUME'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', pat]),
-        mkcmd('ag', ['ag', pat]),
-        # I guess setting LC_ALL=en_US.UTF-8 probably isn't necessarily the
-        # default, but I'd guess it to be on most desktop systems.
-        mkcmd('git grep', ['git', 'grep', pat], env=GREP_UNICODE),
-        mkcmd('ugrep', ['ugrep', '-r', pat, './']),
-        mkcmd('grep', ['grep', '-r', pat, './'], env=GREP_UNICODE),
-    ])
-
-
-def bench_linux_literal(suite_dir):
-    '''
-    Benchmark the speed of a literal, attempting to be fair.
-
-    This tries to use the minimum set of options available in all tools
-    to test how fast they are. For example, it makes sure there is
-    no case insensitive matching and that line numbers are computed
-    (because some tools don't permit disabling line numbers).
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = 'PM_RESUME'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', pat]),
-        mkcmd('rg (mmap)', ['rg', '-n', '--mmap', pat]),
-        mkcmd('ag (mmap)', ['ag', '-s', pat]),
-        mkcmd('git grep', [
-            'git', 'grep', '-I', '-n', pat,
-        ], env={'LC_ALL': 'C'}),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', pat, './',
-        ])
-    ])
-
-
-def bench_linux_literal_casei(suite_dir):
-    '''
-    Benchmark the speed of a case insensitive literal search.
-
-    This is like the linux_literal benchmark, except we ask the
-    search tools to do case insensitive search.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = 'PM_RESUME'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', '-i', pat]),
-        mkcmd('rg (mmap)', ['rg', '-n', '-i', '--mmap', pat]),
-        mkcmd('ag (mmap)', ['ag', '-i', pat]),
-        # It'd technically be more appropriate to set LC_ALL=en_US.UTF-8 here,
-        # since that is certainly what ripgrep is doing, but this is for an
-        # ASCII literal, so we should give `git grep` all the opportunity to
-        # do its best.
-        mkcmd('git grep', [
-            'git', 'grep', '-I', '-n', '-i', pat,
-        ], env={'LC_ALL': 'C'}),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', '-i', pat, './',
-        ])
-    ])
-
-
-def bench_linux_re_literal_suffix(suite_dir):
-    '''
-    Benchmark the speed of a literal inside a regex.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = '[A-Z]+_RESUME'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', pat]),
-        mkcmd('ag', ['ag', '-s', pat]),
-        mkcmd(
-            'git grep',
-            ['git', 'grep', '-E', '-I', '-n', pat],
-            env={'LC_ALL': 'C'},
-        ),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', pat, './',
-        ])
-    ])
-
-
-def bench_linux_word(suite_dir):
-    '''
-    Benchmark use of the -w ("match word") flag in each tool.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = 'PM_RESUME'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', '-w', pat]),
-        mkcmd('ag', ['ag', '-s', '-w', pat]),
-        mkcmd(
-            'git grep',
-            ['git', 'grep', '-E', '-I', '-n', '-w', pat],
-            env={'LC_ALL': 'C'},
-        ),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', '-w', pat, './',
-        ])
-    ])
-
-
-def bench_linux_unicode_greek(suite_dir):
-    '''
-    Benchmark matching of a Unicode category.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = r'\p{Greek}'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', pat]),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', pat, './',
-        ])
-    ])
-
-
-def bench_linux_unicode_greek_casei(suite_dir):
-    '''
-    Benchmark matching of a Unicode category, case insensitively.
-
-    Only ripgrep gets this right (and it's still fast).
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = r'\p{Greek}'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', '-i', pat]),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', '-i', pat, './',
-        ])
-    ])
-
-
-def bench_linux_unicode_word(suite_dir):
-    '''
-    Benchmark Unicode aware \\w character class.
-
-    Only ripgrep and git-grep (with LC_ALL=en_US.UTF-8) actually get
-    this right. Everything else uses the standard ASCII interpretation
-    of \\w.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = r'\wAh'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', pat]),
-        mkcmd('rg (ASCII)', ['rg', '-n', '(?-u)' + pat]),
-        mkcmd('ag (ASCII)', ['ag', '-s', pat]),
-        mkcmd(
-            'git grep',
-            ['git', 'grep', '-E', '-I', '-n', pat],
-            env={'LC_ALL': 'en_US.UTF-8'},
-        ),
-        mkcmd(
-            'git grep (ASCII)',
-            ['git', 'grep', '-E', '-I', '-n', pat],
-            env={'LC_ALL': 'C'},
-        ),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', pat, './',
-        ]),
-        mkcmd('ugrep (ASCII)', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', '-U', pat, './',
-        ]),
-    ])
-
-
-def bench_linux_no_literal(suite_dir):
-    '''
-    Benchmark a regex that defeats all literal optimizations.
-
-    Most search patterns have some kind of literal in them, which
-    typically permits searches to take some shortcuts. Therefore, the
-    applicability of this benchmark is somewhat suspicious, but the
-    suite wouldn't feel complete without it.
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = r'\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', pat]),
-        mkcmd('rg (ASCII)', ['rg', '-n', '(?-u)' + pat]),
-        mkcmd('ag (ASCII)', ['ag', '-s', pat]),
-        mkcmd(
-            'git grep',
-            ['git', 'grep', '-E', '-I', '-n', pat],
-            env={'LC_ALL': 'en_US.UTF-8'},
-        ),
-        mkcmd(
-            'git grep (ASCII)',
-            ['git', 'grep', '-E', '-I', '-n', pat],
-            env={'LC_ALL': 'C'},
-        ),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', pat, './',
-        ]),
-        mkcmd('ugrep (ASCII)', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', '-U', pat, './',
-        ]),
-    ])
-
-
-def bench_linux_alternates(suite_dir):
-    '''
-    Benchmark a small alternation of literals.
-
-    sift doesn't make the cut. It's more than 10x slower than the next
-    fastest result. The slowdown is likely because the Go regexp engine
-    doesn't do any literal optimizations for this case (there is no
-    common leading byte).
-    '''
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = 'ERR_SYS|PME_TURN_OFF|LINK_REQ_RST|CFG_BME_EVT'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', pat]),
-        mkcmd('ag', ['ag', '-s', pat]),
-        mkcmd(
-            'git grep',
-            ['git', 'grep', '-E', '-I', '-n', pat],
-            env={'LC_ALL': 'C'},
-        ),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', pat, './',
-        ])
-    ])
-
-
-def bench_linux_alternates_casei(suite_dir):
-    'Benchmark a small alternation of literals case insensitively.'
-    require(suite_dir, 'linux')
-    cwd = path.join(suite_dir, LINUX_DIR)
-    pat = 'ERR_SYS|PME_TURN_OFF|LINK_REQ_RST|CFG_BME_EVT'
-
-    def mkcmd(*args, **kwargs):
-        kwargs['cwd'] = cwd
-        return Command(*args, **kwargs)
-
-    return Benchmark(pattern=pat, commands=[
-        mkcmd('rg', ['rg', '-n', '-i', pat]),
-        mkcmd('ag', ['ag', '-i', pat]),
-        mkcmd(
-            'git grep',
-            ['git', 'grep', '-E', '-I', '-n', '-i', pat],
-            env={'LC_ALL': 'C'},
-        ),
-        mkcmd('ugrep', [
-            'ugrep', '-r', '--ignore-files', '--no-hidden', '-I',
-            '-n', '-i', pat, './',
-        ])
-    ])
-
-
-def bench_subtitles_en_literal(suite_dir):
+def bench_subtitles_en_literal1(suite_dir, bins_list):
     '''
     Benchmark the speed of an ASCII string literal.
     '''
     require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
     pat = 'Sherlock Holmes'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', pat, en]),
-        Command('rg (no mmap)', ['rg', '--no-mmap', pat, en]),
-        Command('grep', ['grep', pat, en], env=GREP_ASCII),
-        Command('rg (lines)', ['rg', '-n', pat, en]),
-        Command('ag (lines)', ['ag', '-s', pat, en]),
-        Command('grep (lines)', ['grep', '-n', pat, en], env=GREP_ASCII),
-        Command('ugrep (lines)', ['ugrep', '-n', pat, en])
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
 
 
-def bench_subtitles_en_literal_casei(suite_dir):
+def bench_subtitles_en_literal2(suite_dir, bins_list):
+    '''
+    Benchmark the speed of an ASCII string literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (no mmap)", [binary, '--no-mmap', pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal3(suite_dir, bins_list):
+    '''
+    Benchmark the speed of an ASCII string literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (lines)", [binary, '-n', pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal4(suite_dir, bins_list):
+    '''
+    Benchmark the speed of an ASCII string literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal5(suite_dir, bins_list):
+    '''
+    Benchmark the speed of an ASCII string literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (no mmap) UTF-16", [binary, '--no-mmap', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal6(suite_dir, bins_list):
+    '''
+    Benchmark the speed of an ASCII string literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (lines) UTF-16", [binary, '-n', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal_casei1(suite_dir, bins_list):
     '''
     Benchmark the speed of a Unicode-y string case insensitively.
     '''
     require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
     pat = 'Sherlock Holmes'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', '-i', pat, en]),
-        Command('grep', ['grep', '-i', pat, en], env=GREP_UNICODE),
-        Command('grep (ASCII)', ['grep', '-E', '-i', pat, en], env=GREP_ASCII),
-        Command('rg (lines)', ['rg', '-n', '-i', pat, en]),
-        Command('ag (lines) (ASCII)', ['ag', '-i', pat, en]),
-        Command('ugrep (lines)', ['ugrep', '-n', '-i', pat, en])
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, '-i', pat, en]))
 
+    return Benchmark(pattern=pat, commands=commands_list)
 
-def bench_subtitles_en_literal_word(suite_dir):
+def bench_subtitles_en_literal_casei2(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a Unicode-y string case insensitively.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, '-n', '-i', pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal_casei3(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a Unicode-y string case insensitively.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, '-i', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal_casei4(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a Unicode-y string case insensitively.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, '-n', '-i', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal_word1(suite_dir, bins_list):
     '''
     Benchmark the speed of finding a literal inside word boundaries.
     '''
     require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'(?-u:\b)Sherlock Holmes(?-u:\b)'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (ASCII)", [binary, '-n', pat, en,]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal_word2(suite_dir, bins_list):
+    '''
+    Benchmark the speed of finding a literal inside word boundaries.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'(?-u:\b)Sherlock Holmes(?-u:\b)'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (ASCII) UTF-16", [binary, '-n', pat, en16,]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_literal_word3(suite_dir, bins_list):
+    '''
+    Benchmark the speed of finding a literal inside word boundaries.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
     pat = 'Sherlock Holmes'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg (ASCII)', [
-            'rg', '-n', r'(?-u:\b)' + pat + r'(?-u:\b)', en,
-        ]),
-        Command('ag (ASCII)', ['ag', '-sw', pat, en]),
-        Command('grep (ASCII)', ['grep', '-nw', pat, en], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-nw', pat, en]),
-        Command('rg', ['rg', '-nw', pat, en]),
-        Command('grep', ['grep', '-nw', pat, en], env=GREP_UNICODE),
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, '-nw', pat, en]))
 
+    return Benchmark(pattern=pat, commands=commands_list)
 
-def bench_subtitles_en_alternate(suite_dir):
+def bench_subtitles_en_literal_word4(suite_dir, bins_list):
+    '''
+    Benchmark the speed of finding a literal inside word boundaries.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = 'Sherlock Holmes'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, '-nw', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_alternate1(suite_dir, bins_list):
     '''
     Benchmark the speed of a set of alternate literals.
     '''
     require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
-    pat = '|'.join([
-        'Sherlock Holmes',
-        'John Watson',
-        'Irene Adler',
-        'Inspector Lestrade',
-        'Professor Moriarty',
-    ])
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg (lines)', ['rg', '-n', pat, en]),
-        Command('ag (lines)', ['ag', '-s', pat, en]),
-        Command('grep (lines)', ['grep', '-E', '-n', pat, en], env=GREP_ASCII),
-        Command('ugrep (lines)', ['ugrep', '-n', pat, en]),
-        Command('rg', ['rg', pat, en]),
-        Command('grep', ['grep', '-E', pat, en], env=GREP_ASCII),
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (lines)", [binary, '-n', pat, en]))
 
+    return Benchmark(pattern=pat, commands=commands_list)
 
-def bench_subtitles_en_alternate_casei(suite_dir):
+def bench_subtitles_en_alternate2(suite_dir, bins_list):
     '''
     Benchmark the speed of a set of alternate literals.
     '''
     require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
-    pat = '|'.join([
-        'Sherlock Holmes',
-        'John Watson',
-        'Irene Adler',
-        'Inspector Lestrade',
-        'Professor Moriarty',
-    ])
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('ag (ASCII)', ['ag', '-s', '-i', pat, en]),
-        Command('grep (ASCII)', [
-            'grep', '-E', '-ni', pat, en,
-        ], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-n', '-i', pat, en]),
-        Command('rg', ['rg', '-n', '-i', pat, en]),
-        Command('grep', ['grep', '-E', '-ni', pat, en], env=GREP_UNICODE),
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, pat, en]))
 
+    return Benchmark(pattern=pat, commands=commands_list)
 
-def bench_subtitles_en_surrounding_words(suite_dir):
+def bench_subtitles_en_alternate3(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a set of alternate literals.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (lines) UTF-16", [binary, '-n', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_alternate4(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a set of alternate literals.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_alternate_casei1(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a set of alternate literals.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, '-n', '-i', pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_alternate_casei2(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a set of alternate literals.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, '-n', '-i', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_surrounding_words1(suite_dir, bins_list):
     '''
     Benchmark a more complex regex with an inner literal.
     '''
     require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
     pat = r'\w+\s+Holmes\s+\w+'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', '-n', pat, en]),
-        Command('grep', ['grep', '-E', '-n', pat, en], env=GREP_UNICODE),
-        Command('ugrep', ['ugrep', '-n', pat, en]),
-        Command('rg (ASCII)', ['rg', '-n', '(?-u)' + pat, en]),
-        Command('ag (ASCII)', ['ag', '-s', pat, en]),
-        Command('grep (ASCII)', ['grep', '-E', '-n', pat, en], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-n', '-U', pat, en])
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, '-n', pat, en]))
 
+    return Benchmark(pattern=pat, commands=commands_list)
 
-def bench_subtitles_en_no_literal(suite_dir):
-    '''
-    Benchmark the speed of a regex with no literals.
-
-    Note that we don't even try to run grep with Unicode support
-    on this one. While it should eventually get the right answer,
-    I killed it after it had already been running for two minutes
-    and showed no signs of finishing soon.
-    '''
-    require(suite_dir, 'subtitles-en')
-    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME_SAMPLE)
-    pat = r'\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}'
-
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', '-n', pat, en]),
-        Command('ugrep', ['ugrep', '-n', pat, en]),
-        Command('rg (ASCII)', ['rg', '-n', '(?-u)' + pat, en]),
-        Command('ag (ASCII)', ['ag', '-s', pat, en]),
-        Command('grep (ASCII)', ['grep', '-E', '-n', pat, en], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-n', '-U', pat, en])
-    ])
-
-
-def bench_subtitles_ru_literal(suite_dir):
-    '''
-    Benchmark the speed of a Unicode-y string literal.
-    '''
-    require(suite_dir, 'subtitles-ru')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = 'Шерлок Холмс'  # Sherlock Holmes
-
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', pat, ru]),
-        Command('rg (no mmap)', ['rg', '--no-mmap', pat, ru]),
-        Command('grep', ['grep', pat, ru], env=GREP_ASCII),
-        Command('rg (lines)', ['rg', '-n', pat, ru]),
-        Command('ag (lines)', ['ag', '-s', pat, ru]),
-        Command('grep (lines)', ['grep', '-n', pat, ru], env=GREP_ASCII),
-        Command('ugrep (lines)', ['ugrep', '-n', pat, ru])
-    ])
-
-
-def bench_subtitles_ru_literal_casei(suite_dir):
-    '''
-    Benchmark the speed of a Unicode-y string case insensitively.
-    '''
-    require(suite_dir, 'subtitles-ru')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = 'Шерлок Холмс'  # Sherlock Holmes
-
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', '-i', pat, ru]),
-        Command('grep', ['grep', '-i', pat, ru], env=GREP_UNICODE),
-        Command('grep (ASCII)', ['grep', '-E', '-i', pat, ru], env=GREP_ASCII),
-        Command('rg (lines)', ['rg', '-n', '-i', pat, ru]),
-        Command('ag (lines) (ASCII)', ['ag', '-i', pat, ru]),
-        Command('ugrep (lines) (ASCII)', ['ugrep', '-n', '-i', pat, ru])
-    ])
-
-
-def bench_subtitles_ru_literal_word(suite_dir):
-    '''
-    Benchmark the speed of finding a literal inside word boundaries.
-    '''
-    require(suite_dir, 'subtitles-ru')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = 'Шерлок Холмс'  # Sherlock Holmes
-
-    return Benchmark(pattern=pat, commands=[
-        Command('rg (ASCII)', [
-            # You might think we'd use \b here for word boundaries, but both
-            # GNU grep and ripgrep implement -w with the formulation below.
-            # Since we can't use Unicode in a pattern and disable Unicode word
-            # boundaries, we just hand-jam this ourselves.
-            'rg', '-n', r'(?-u:^|\W)' + pat + r'(?-u:$|\W)', ru,
-        ]),
-        Command('ag (ASCII)', ['ag', '-sw', pat, ru]),
-        Command('grep (ASCII)', [
-            'grep', '-nw', pat, ru,
-        ], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-nw', pat, ru]),
-        Command('rg', ['rg', '-nw', pat, ru]),
-        Command('grep', ['grep', '-nw', pat, ru], env=GREP_UNICODE),
-    ])
-
-
-def bench_subtitles_ru_alternate(suite_dir):
-    '''
-    Benchmark the speed of a set of alternate literals.
-    '''
-    require(suite_dir, 'subtitles-ru')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = '|'.join([
-        'Шерлок Холмс',  # Sherlock Holmes
-        'Джон Уотсон',  # John Watson
-        'Ирен Адлер',  # Irene Adler
-        'инспектор Лестрейд',  # Inspector Lestrade
-        'профессор Мориарти',  # Professor Moriarty
-    ])
-
-    return Benchmark(pattern=pat, commands=[
-        Command('rg (lines)', ['rg', '-n', pat, ru]),
-        Command('ag (lines)', ['ag', '-s', pat, ru]),
-        Command('grep (lines)', ['grep', '-E', '-n', pat, ru], env=GREP_ASCII),
-        Command('ugrep (lines)', ['ugrep', '-n', pat, ru]),
-        Command('rg', ['rg', pat, ru]),
-        Command('grep', ['grep', '-E', pat, ru], env=GREP_ASCII),
-    ])
-
-
-def bench_subtitles_ru_alternate_casei(suite_dir):
-    '''
-    Benchmark the speed of a set of alternate literals.
-    '''
-    require(suite_dir, 'subtitles-ru')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = '|'.join([
-        'Шерлок Холмс',  # Sherlock Holmes
-        'Джон Уотсон',  # John Watson
-        'Ирен Адлер',  # Irene Adler
-        'инспектор Лестрейд',  # Inspector Lestrade
-        'профессор Мориарти',  # Professor Moriarty
-    ])
-
-    return Benchmark(pattern=pat, commands=[
-        Command('ag (ASCII)', ['ag', '-s', '-i', pat, ru]),
-        Command('grep (ASCII)', [
-            'grep', '-E', '-ni', pat, ru,
-        ], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-n', '-i', pat, ru]),
-        Command('rg', ['rg', '-n', '-i', pat, ru]),
-        Command('grep', ['grep', '-E', '-ni', pat, ru], env=GREP_UNICODE),
-    ])
-
-
-def bench_subtitles_ru_surrounding_words(suite_dir):
+def bench_subtitles_en_surrounding_words2(suite_dir, bins_list):
     '''
     Benchmark a more complex regex with an inner literal.
     '''
     require(suite_dir, 'subtitles-en')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = r'\w+\s+Холмс\s+\w+'
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'(?-u)\w+\s+Holmes\s+\w+'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', '-n', pat, ru]),
-        Command('grep', ['grep', '-E', '-n', pat, ru], env=GREP_UNICODE),
-        Command('ugrep', ['ugrep', '-n', pat, ru]),
-        Command('ag (ASCII)', ['ag', '-s', pat, ru]),
-        Command('grep (ASCII)', ['grep', '-E', '-n', pat, ru], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-n', '-U', pat, ru]),
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (ASCII)", [binary, '-n', pat, en]))
 
+    return Benchmark(pattern=pat, commands=commands_list)
 
-def bench_subtitles_ru_no_literal(suite_dir):
+def bench_subtitles_en_surrounding_words3(suite_dir, bins_list):
+    '''
+    Benchmark a more complex regex with an inner literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'\w+\s+Holmes\s+\w+'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, '-n', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_surrounding_words4(suite_dir, bins_list):
+    '''
+    Benchmark a more complex regex with an inner literal.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'(?-u)\w+\s+Holmes\s+\w+'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (ASCII) UTF-16", [binary, '-n', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_no_literal1(suite_dir, bins_list):
     '''
     Benchmark the speed of a regex with no literals.
 
@@ -670,18 +439,76 @@ def bench_subtitles_ru_no_literal(suite_dir):
     I killed it after it had already been running for two minutes
     and showed no signs of finishing soon.
     '''
-    require(suite_dir, 'subtitles-ru')
-    ru = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_RU_NAME)
-    pat = r'\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}'
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}'
 
-    return Benchmark(pattern=pat, commands=[
-        Command('rg', ['rg', '-n', pat, ru]),
-        Command('ugrep', ['ugrep', '-n', pat, ru]),
-        Command('rg (ASCII)', ['rg', '-n', '(?-u)' + pat, ru]),
-        Command('ag (ASCII)', ['ag', '-s', pat, ru]),
-        Command('grep (ASCII)', ['grep', '-E', '-n', pat, ru], env=GREP_ASCII),
-        Command('ugrep (ASCII)', ['ugrep', '-n', '-U', pat, ru])
-    ])
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)}", [binary, '-n', pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_no_literal2(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a regex with no literals.
+
+    Note that we don't even try to run grep with Unicode support
+    on this one. While it should eventually get the right answer,
+    I killed it after it had already been running for two minutes
+    and showed no signs of finishing soon.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'(?-u)\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (ASCII)", [binary, '-n', pat, en]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_no_literal3(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a regex with no literals.
+
+    Note that we don't even try to run grep with Unicode support
+    on this one. While it should eventually get the right answer,
+    I killed it after it had already been running for two minutes
+    and showed no signs of finishing soon.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} UTF-16", [binary, '-n', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
+
+def bench_subtitles_en_no_literal4(suite_dir, bins_list):
+    '''
+    Benchmark the speed of a regex with no literals.
+
+    Note that we don't even try to run grep with Unicode support
+    on this one. While it should eventually get the right answer,
+    I killed it after it had already been running for two minutes
+    and showed no signs of finishing soon.
+    '''
+    require(suite_dir, 'subtitles-en')
+    en = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME)
+    en16 = path.join(suite_dir, SUBTITLES_DIR, SUBTITLES_EN_NAME16)
+    pat = r'(?-u)\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}'
+
+    commands_list = []
+    for binary in bins_list:
+        commands_list.append(Command(f"{os.path.basename(binary)} (ASCII) UTF-16", [binary, '-n', pat, en16]))
+
+    return Benchmark(pattern=pat, commands=commands_list)
 
 
 class MissingDependencies(Exception):
@@ -728,7 +555,7 @@ class Benchmark(object):
     '''
 
     def __init__(self, name=None, pattern=None, commands=None,
-                 warmup_count=1, count=3, line_count=True,
+                 warmup_count=0, count=2, line_count=True,
                  allow_missing_commands=False,
                  disabled_cmds=None, order=0):
         '''
@@ -773,7 +600,7 @@ class Benchmark(object):
         self.pattern = pattern
         self.commands = commands or []
         self.warmup_count = warmup_count
-        self.count = count
+        self.count = 2
         self.line_count = line_count
         self.allow_missing_commands = allow_missing_commands
         self.disabled_cmds = set(disabled_cmds or [])
@@ -1052,27 +879,62 @@ def download_subtitles_en(suite_dir):
     subtitle_dir = path.join(suite_dir, SUBTITLES_DIR)
     en_path_gz = path.join(subtitle_dir, SUBTITLES_EN_NAME_GZ)
     en_path = path.join(subtitle_dir, SUBTITLES_EN_NAME)
+    en_path16 = path.join(subtitle_dir, SUBTITLES_EN_NAME16)
     en_path_sample = path.join(subtitle_dir, SUBTITLES_EN_NAME_SAMPLE)
 
     if not os.path.isdir(subtitle_dir):
         os.makedirs(subtitle_dir)
     if not os.path.exists(en_path):
-        if not os.path.exists(en_path_gz):
-            run_cmd(['curl', '-LO', SUBTITLES_EN_URL], cwd=subtitle_dir)
-        run_cmd(['gunzip', en_path_gz])
-    if not os.path.exists(en_path_sample):
-        # Get a sample roughly the same size as the Russian corpus so that
-        # benchmarks finish in a reasonable time.
-        with open(path.join(subtitle_dir, en_path_sample), 'wb+') as f:
-            run_cmd(
-                ['head', '-n', '55000000', en_path],
-                cwd=subtitle_dir, stdout=f)
+        #if not os.path.exists(en_path_gz):
+            #run_cmd(['curl', '-LO', SUBTITLES_EN_URL], cwd=subtitle_dir)
+        extract_cmd = "pigz -dc en.txt.gz > en.txt"
+        cwd = subtitle_dir
+        try:
+            process = subprocess.run(
+                extract_cmd,
+                check=True,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                universal_newlines=True,
+                cwd=cwd,
+            )
+        except subprocess.CalledProcessError as err:
+            print(f"Unable extract {extract_cmd}: {err}")
+            sys.exit(1)
+    if not os.path.exists(en_path16):
+        #if not os.path.exists(en_path_gz):
+            #run_cmd(['curl', '-LO', SUBTITLES_EN_URL], cwd=subtitle_dir)
+        extract_cmd = "pigz -dc en16.txt.gz > en16.txt"
+        cwd = subtitle_dir
+        try:
+            process = subprocess.run(
+                extract_cmd,
+                check=True,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                universal_newlines=True,
+                cwd=cwd,
+            )
+        except subprocess.CalledProcessError as err:
+            print(f"Unable extract {extract_cmd}: {err}")
+            sys.exit(1)
+    #if not os.path.exists(en_path_sample):
+        ## Get a sample roughly the same size as the Russian corpus so that
+        ## benchmarks finish in a reasonable time.
+        #with open(path.join(subtitle_dir, en_path_sample), 'wb+') as f:
+            #run_cmd(
+                #['head', '-n', '10416550', en_path],
+                #cwd=subtitle_dir, stdout=f)
 
 
 def has_subtitles_en(suite_dir):
     'Returns true if English subtitles have been downloaded.'
     subtitle_dir = path.join(suite_dir, SUBTITLES_DIR)
-    return path.exists(path.join(subtitle_dir, SUBTITLES_EN_NAME_SAMPLE))
+    return path.exists(path.join(subtitle_dir, SUBTITLES_EN_NAME))
 
 
 def download_subtitles_ru(suite_dir):
@@ -1123,7 +985,7 @@ def download(suite_dir, choices):
             sys.exit(1)
 
 
-def collect_benchmarks(suite_dir, filter_pat=None,
+def collect_benchmarks(suite_dir, bins_list, filter_pat=None,
                        allow_missing_commands=False,
                        disabled_cmds=None,
                        warmup_iter=1, bench_iter=3):
@@ -1149,7 +1011,7 @@ def collect_benchmarks(suite_dir, filter_pat=None,
             continue
         try:
             fun = globals()[global_name]
-            benchmark = fun(suite_dir)
+            benchmark = fun(suite_dir, bins_list)
             benchmark.name = name
             benchmark.warmup_count = warmup_iter
             benchmark.count = bench_iter
@@ -1173,12 +1035,68 @@ def collect_benchmarks(suite_dir, filter_pat=None,
         benchmarks.append(benchmark)
     return sorted(benchmarks, key=lambda b: b.order)
 
+class BinStatistics(object):
+    def __init__(self, name):
+        self.basename = name
+        self.sum_means = 0.0
+        self.sum_std_dev_means = 0.0
+        self.bin_wins = []
+        self.bin_wins_total = 0
+        self.bin_fastest_wins = []
+        self.bin_fastest_wins_total = 0
+        self.wins_total_print = ""
+        self.fastest_wins_total_print = ""
+        self.sum_means_print = ""
+        self.np_sum_means_print = ""
+        self.all_results = []
+
+class Bin(object):
+    def __init__(self, fullpath):
+        self.basename = os.path.basename(fullpath)
+        self.fullpath = fullpath
+        self.sum_means = 0.0
+        self.sum_std_dev_means = 0.0
+        self.bin_wins = []
+        self.bin_wins_total = 0
+        self.bin_fastest_wins = []
+        self.bin_fastest_wins_total = 0
+        self.wins_total_print = ""
+        self.fastest_wins_total_print = ""
+        self.sum_means_print = ""
+        self.np_sum_means_print = ""
+        self.all_results = []
+        self.sha256 = get_checksum(fullpath, algorithm="SHA256")
+
+    def __repr__(self):
+        return repr((self.basename, self.sum_means, self.sum_std_dev_means,
+                     self.bin_wins_total, self.bin_fastest_wins_total))
+
+def write_out(filename, content, mode="w"):
+    """File.write convenience wrapper."""
+    with open_auto(filename, mode) as require_f:
+        require_f.write(content)
+
+
+def open_auto(*args, **kwargs):
+    """Open a file with UTF-8 encoding.
+
+    Open file with UTF-8 encoding and "surrogate" escape characters that are
+    not valid UTF-8 to avoid data corruption.
+    """
+    # 'encoding' and 'errors' are fourth and fifth positional arguments, so
+    # restrict the args tuple to (file, mode, buffering) at most
+    assert len(args) <= 3
+    assert 'encoding' not in kwargs
+    assert 'errors' not in kwargs
+    return open(*args, encoding="utf-8", errors="surrogateescape", **kwargs)
 
 def main():
+    script_dirname = f"{os.path.abspath(os.path.dirname( __file__ ))}"
+
     download_choices = ['all', 'linux', 'subtitles-en', 'subtitles-ru']
     p = argparse.ArgumentParser('Command line search tool benchmark suite.')
     p.add_argument(
-        '--dir', metavar='PATH', default=os.getcwd(),
+        '--dir', metavar='PATH', default=script_dirname,
         help='The directory in which to download data and perform searches.')
     p.add_argument(
         '--download', metavar='CORPUS', action='append',
@@ -1190,18 +1108,18 @@ def main():
              'then the total uncompressed size is around 13 GB. '
              'Choices: %s' % ', '.join(download_choices))
     p.add_argument(
-        '--allow-missing', action='store_true',
+        '--allow-missing', action='store_true', default=True,
         help='Permit benchmarks to run even if some commands are missing.')
     p.add_argument(
         '--disabled', help='A list of comma separated commands to skip.')
     p.add_argument(
-        '-f', '--force', action='store_true',
+        '-f', '--force', action='store_true', default=True,
         help='Overwrite existing files if there is a conflict.')
     p.add_argument(
         '--list', action='store_true',
         help='List available benchmarks by name.')
     p.add_argument(
-        '--raw', metavar='PATH',
+        '--raw', metavar='PATH', default=f"{script_dirname}/raw.csv",
         help='Dump raw data (all samples collected) in CSV format to the '
              'file path provided.')
     p.add_argument(
@@ -1215,11 +1133,177 @@ def main():
     p.add_argument(
         'bench', metavar='PAT', nargs='?',
         help='A regex pattern that will only run benchmarks that match.')
+    p.add_argument(
+        '--bins', default="", help='Binaries to be tested: --bins PATH1,PATH2,PATH3.')
+    p.add_argument(
+        '--ttest', action='store_true', help="Perform Welch's t-test on two set of results written on raw.csv")
+    p.add_argument(
+        '--flags', default="", help='Flags')
+    p.add_argument(
+        '--bolt-flags', default="", help='Bolt flags')
     args = p.parse_args()
+
+
+    if args.ttest:
+        binaries = []
+        bins_added = []
+        with open(f"{os.path.abspath(os.path.dirname( __file__ ))}/raw.csv", 'r+') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                name = row['name'].split(' ')[0]
+                if name not in bins_added:
+                    bins_added.append(name)
+                    binaries.append(BinStatistics(name))
+                for binary in binaries:
+                    if binary.basename == name:
+                        binary.all_results.append(row['duration'])
+
+
+        total_bins = len(binaries)
+        for binary in binaries:
+            binary.np_all_results = np.array(binary.all_results, dtype=np.float64)
+            binary.np_mean = np.mean(binary.np_all_results, dtype = np.float64)
+            binary.np_stddev = np.std(binary.np_all_results, dtype = np.float64)
+            binary.np_var = np.var(binary.np_all_results, dtype = np.float64)
+            #binary.np_stddev = np.std(binary.np_all_results, ddof=1, dtype = np.float64)
+            #binary.np_var = np.var(binary.np_all_results, ddof=1, dtype = np.float64)
+            binary.bayes_mean, binary.bayes_var, binary.bayes_stddev = stats.bayes_mvs(binary.np_all_results, alpha=0.95)
+            #print(f"{binary.basename} binary.np_all_results:\n{binary.np_all_results}")
+            #print(f"{binary.basename} binary.np_mean: {binary.np_mean}")
+            #print(f"{binary.basename} binary.np_stddev: {binary.np_stddev}")
+            #print(f"{binary.basename} binary.np_var: {binary.np_var}\n")
+
+        pd_all_results = pd.DataFrame(data={'milliseconds': np.concatenate((binaries[0].np_all_results, binaries[1].np_all_results),  dtype = np.float64),
+            'binary': [binaries[0].basename for x in range(len(binaries[0].np_all_results))] + [binaries[1].basename for x in range(len(binaries[1].np_all_results))]})
+
+        binaries.sort(key=lambda binary: binary.bayes_mean.statistic, reverse=False)
+        for i in range(total_bins):
+            if total_bins > 1:
+                if (i == 0):
+                    if (binaries[i].bayes_mean.statistic < binaries[i+1].bayes_mean.statistic):
+                        diff_total = 0.0
+                        diff_total = binaries[i+1].bayes_mean.statistic - binaries[i].bayes_mean.statistic
+                        diff_percent = (diff_total*100)/binaries[i+1].bayes_mean.statistic
+                        binaries[i].np_sum_means_print = f"\033[31;1m{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}] -{diff_total:0.5f}ms or +{diff_percent:0.5f}% faster than the second\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]\033[0m"
+                    else:
+                        binaries[i].np_sum_means_print = f"\033[34;1m{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}]\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]\033[0m"
+                else:
+                    binaries[i].np_sum_means_print = f"{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}]\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]"
+            else:
+                binaries[i].np_sum_means_print = f"{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}]\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]"
+
+        for binary in binaries:
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"{binary.np_sum_means_print}\n")
+            #print(f"{binary.bayes_mean}")
+            #print(f"{binary.bayes_stddev}")
+            #print(f"{binary.bayes_var}\n")
+
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        t, p = stats.ttest_ind(binaries[0].np_all_results, binaries[1].np_all_results, alternative="two-sided", equal_var=False)
+        th = 0.05
+        dispose = p < th
+        print("t = {:.3}, p = {:.3}".format(t, p))
+        print()
+        if dispose:
+            print("\033[31;1mSignificant difference between the two benchmarks (p < {})\033[0m\n".format(th))
+        else:
+            print("\033[34;1mThe two benchmarks are almost the same (p >= {})\033[0m\n".format(th))
+
+        #sns.set_theme()
+        #sns.set(rc={"figure.dpi":200, 'savefig.dpi':200})
+        sns.set_style("darkgrid", {"axes.facecolor": ".9"})
+        sns.set_context("notebook", rc={"grid.linewidth": 0.4, "figure.dpi" : 200, "savefig.dpi" : 200})
+        fig = plt.figure(figsize=(3560/200, 1212/200), dpi=200)
+        ax1 = fig.add_subplot(111)
+        fig.set_dpi(200)
+
+        #ax1 = sns.histplot(ax=ax1, data=pd_all_results, x="milliseconds", hue="binary", element="step", stat="probability", line_kws={'linewidth': 0.5}, kde=True, bins=pd_all_results["milliseconds"].count())
+        sns.histplot(ax=ax1, data=pd_all_results, x="milliseconds", hue="binary", stat="count", line_kws={'linewidth': 0.4}, linewidth=0.4, kde=True, element="step", bins="fd")
+
+        ax1.set_ylabel("count", fontsize= 6)
+        ax1.set_xlabel("milliseconds", fontsize= 6)
+        plt.title("benchsuite", fontsize= 6)
+        plt.xticks(fontsize=5)
+        plt.yticks(fontsize=5)
+
+        arr = (seg[0][1] for seg in ax1.collections[0].get_paths()[0].iter_segments())
+        #y_values = np.array(tuple(arr), dtype = np.float64)
+        histplot_y_max = np.amax(np.array(tuple(arr), dtype = np.float64))
+        #print(f"histplot_y_max: {histplot_y_max:0.5f}")
+
+        ax1.axvline(x=binaries[0].bayes_mean.statistic, ymin=0, ymax=1, color='red', label=f"{binaries[0].basename} mean", linewidth=0.3, linestyle='--', zorder=5)
+        ax1.axvline(x=binaries[1].bayes_mean.statistic, ymin=0, ymax=1, color='blue', label=f"{binaries[1].basename} mean", linewidth=0.3, linestyle='--', zorder=5)
+
+        handles1, labels1 = ax1.get_legend_handles_labels()
+        legend = ax1.get_legend()
+        handles2 = legend.legendHandles
+        #print(handles1)
+        #print(labels1)
+        #print(handles2)
+        handles2 += handles1
+        legend.remove()
+        ax1.legend(handles2, [f"{binaries[0].basename}", f"{binaries[1].basename}", f"{binaries[0].basename} mean", f"{binaries[1].basename} mean"])
+
+        ax1.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+        ax1.set_xticks(np.arange(0, pd_all_results["milliseconds"].max()+0.01, 0.01))
+        ax1.set_yticks(np.arange(0, histplot_y_max+5, 5))
+        ax1.set(xlim=(-0.01, np.around(pd_all_results["milliseconds"].max()+0.01, 2)), ylim=(0,histplot_y_max+5))
+        #print(f"ax1.get_xlim(): {ax1.get_xlim()}")
+        #print(f"ax1.get_ylim(): {ax1.get_ylim()}")
+        #print(f"ax1.get_xticks(): {ax1.get_xticks()}")
+        #print(f"ax1.get_yticks(): {ax1.get_yticks()}")
+
+
+        mean_zoom = np.array(0.0, dtype = np.float64)
+        if binaries[0].bayes_mean.statistic > binaries[1].bayes_mean.statistic:
+            mean_zoom = np.array(binaries[1].bayes_mean.statistic, dtype = np.float64)
+        else:
+            mean_zoom = np.array(binaries[0].bayes_mean.statistic, dtype = np.float64)
+
+        ax2 = plt.axes([mean_zoom*5.55, 0.76, .1, .1], facecolor='khaki')
+        for spine in ax2.spines.values():
+            spine.set_edgecolor('black')
+            spine.set_linewidth(0.7)
+        ax2.grid(True, color ="black", alpha=0.3)
+
+        ax2.axvline(x=binaries[0].bayes_mean.statistic, ymin=0, ymax=1, color='red', linewidth=0.4, linestyle='--', zorder=5)
+        ax2.axvline(x=binaries[1].bayes_mean.statistic, ymin=0, ymax=1, color='blue', linewidth=0.4, linestyle='--', zorder=5)
+
+        ax2.xaxis.set_major_formatter(FormatStrFormatter('%.4f'))
+        ax2.set_xticks(np.arange(binaries[0].bayes_mean.statistic-0.001, binaries[0].bayes_mean.statistic+0.001, 0.0005))
+        ax2.set(xlim=(binaries[0].bayes_mean.statistic-0.001, binaries[0].bayes_mean.statistic+0.001), ylim=(ax1.get_ylim()[1]-20, ax1.get_ylim()[1]-10))
+        ax2.xaxis.set_ticks_position('top')
+        ax2.tick_params(pad=0.1, width=0.5, length=2.5, direction='out')
+        plt.setp(ax2.get_yticklabels(), visible=False)
+        plt.xticks(fontsize=4)
+        plt.yticks(fontsize=4)
+
+        #mark_inset(ax1, ax2, loc1=3, loc2=2, fc="none", ec="black", linewidth=0.4, zorder=2)
+        mark_inset(ax1, ax2, loc1=4, loc2=2, fc="none", ec="black", linewidth=0.3, zorder=1)
+
+        ax1.autoscale_view()
+        plt.tight_layout(pad=0.1)
+        fig.subplots_adjust(left=0.020)
+        #print(sns.axes_style())
+        plt.show()
+        sys.exit(0)
+
+
+    if len(args.bins) > 0:
+        bins_list = args.bins.split(',')
+        binaries = [Bin(x) for x in bins_list]
+    else:
+        print("Need at least two binaries for benchmarking comparison")
+        sys.exit(1)
+
+    output_buffer = []
+
+
 
     if args.list:
         benchmarks = collect_benchmarks(
-            args.dir, filter_pat=args.bench,
+            args.dir, bins_list, filter_pat=args.bench,
             allow_missing_commands=args.allow_missing,
             disabled_cmds=(args.disabled or '').split(','),
             warmup_iter=args.warmup_iter, bench_iter=args.bench_iter)
@@ -1246,7 +1330,7 @@ def main():
         raw_csv_wtr.writerow({x: x for x in fields})
 
     benchmarks = collect_benchmarks(
-        args.dir, filter_pat=args.bench,
+        args.dir, bins_list, filter_pat=args.bench,
         allow_missing_commands=args.allow_missing,
         disabled_cmds=(args.disabled or '').split(','),
         warmup_iter=args.warmup_iter, bench_iter=args.bench_iter)
@@ -1256,10 +1340,11 @@ def main():
         fastest_sample = result.fastest_sample()
         max_name_len = max(len(cmd.name) for cmd in b.commands)
 
-        if i > 0:
-            print()
+
         header = '%s (pattern: %s)' % (b.name, b.pattern)
-        print('%s\n%s' % (header, '-' * len(header)))
+        header_final = '\n%s\n%s' % (header, '-' * len(header))
+        print(header_final)
+        output_buffer.append(header_final)
         for cmd in b.commands:
             name = cmd.name
             mean, stdev = result.distribution_for(cmd)
@@ -1273,13 +1358,27 @@ def main():
                 show_fast_cmd = '*'
             if fastest_sample['cmd'].name == cmd.name:
                 name += '*'
+                for binary in binaries:
+                    if binary.basename == os.path.basename(cmd.cmd[0]):
+                        binary.bin_fastest_wins.append(f"{b.name}")
             if len(line_counts) > 0:
                 counts = map(str, line_counts)
                 show_line_counts = ' (lines: %s)' % ', '.join(counts)
-            fmt = '{name:{pad}} {mean:0.3f} +/- {stdev:0.3f}{lines}{fast_cmd}'
-            print(fmt.format(
+            for binary in binaries:
+                if binary.basename == os.path.basename(cmd.cmd[0]):
+                    binary.sum_means = binary.sum_means + mean
+                    binary.sum_std_dev_means = binary.sum_std_dev_means + stdev
+            fmt = '{name:{pad}} {mean:0.5f} +/- {stdev:0.5f}{lines}{fast_cmd}'
+            if fastest_cmd.name == cmd.name:
+                fmt = '\033[31;1m{name:{pad}} {mean:0.5f} +/- {stdev:0.5f}{lines}{fast_cmd}\033[0m'
+                for binary in binaries:
+                    if binary.basename == os.path.basename(cmd.cmd[0]):
+                        binary.bin_wins.append(f"{b.name}")
+            print_result_final = fmt.format(
                 name=name, pad=max_name_len + 2, fast_cmd=show_fast_cmd,
-                mean=mean, stdev=stdev, lines=show_line_counts))
+                mean=mean, stdev=stdev, lines=show_line_counts)
+            print(print_result_final)
+            output_buffer.append(print_result_final)
         sys.stdout.flush()
 
         if raw_csv_wtr is not None:
@@ -1298,6 +1397,282 @@ def main():
                     'env': env,
                 })
             raw_handle.flush()
+
+    for binary in binaries:
+        binary.bin_wins_total = len(binary.bin_wins)
+        binary.bin_fastest_wins_total = len(binary.bin_fastest_wins)
+    total_benchmarks = len(benchmarks)
+    total_bins = len(binaries)
+
+    #time_to_wait = 5
+    #time_counter = 0
+    #while not os.path.exists("raw.csv"):
+        #time.sleep(1)
+        #time_counter += 1
+        #if time_counter > time_to_wait:
+            #break
+    with open(f"{os.path.abspath(os.path.dirname( __file__ ))}/raw.csv", 'r+') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            for binary in binaries:
+                if binary.basename in row['name']:
+                    binary.all_results.append(row['duration'])
+
+    for binary in binaries:
+        binary.np_all_results = np.array(binary.all_results, dtype=np.float64)
+        binary.np_mean = np.mean(binary.np_all_results, dtype = np.float64)
+        binary.np_stddev = np.std(binary.np_all_results, dtype = np.float64)
+        binary.np_var = np.var(binary.np_all_results, dtype = np.float64)
+        binary.bayes_mean, binary.bayes_var, binary.bayes_stddev = stats.bayes_mvs(binary.np_all_results, alpha=0.95)
+
+    pd_all_results = pd.DataFrame(data={'milliseconds': np.concatenate((binaries[0].np_all_results, binaries[1].np_all_results),  dtype = np.float64),
+          'binary': [binaries[0].basename for x in range(len(binaries[0].np_all_results))] + [binaries[1].basename for x in range(len(binaries[1].np_all_results))]})
+
+    print("\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    output_buffer.append("\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+
+    binaries.sort(key=lambda binary: binary.bin_wins_total, reverse=True)
+    for i in range(total_bins):
+        if total_bins > 1:
+            if (i == 0):
+                if (binaries[i].bin_wins_total != binaries[i+1].bin_wins_total):
+                    #print(f"\033[31;1m{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}\033[0m")
+                    binaries[i].wins_total_print = f"\033[31;1m{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}\033[0m"
+                    #print(f"{' '.join(binaries[i].bin_wins)}\n")
+                else:
+                    #print(f"\033[34;1m{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}\033[0m")
+                    binaries[i].wins_total_print = f"\033[34;1m{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}\033[0m"
+                    #print(f"{' '.join(binaries[i].bin_wins)}\n")
+            else:
+                #print(f"{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}")
+                binaries[i].wins_total_print = f"{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}"
+                #print(f"{' '.join(binaries[i].bin_wins)}\n")
+        else:
+            #print(f"\033[31;1m{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}\033[0m")
+            binaries[i].wins_total_print = f"\033[31;1m{binaries[i].basename} total wins: {binaries[i].bin_wins_total}/{total_benchmarks}\033[0m"
+            #print(f"{' '.join(binaries[i].bin_wins)}\n")
+
+    binaries.sort(key=lambda binary: binary.bin_fastest_wins_total, reverse=True)
+    for i in range(total_bins):
+        if total_bins > 1:
+            if (i == 0):
+                if (binaries[i].bin_fastest_wins_total != binaries[i+1].bin_fastest_wins_total):
+                    #print(f"\033[31;1m{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}\033[0m")
+                    binaries[i].fastest_wins_total_print = f"\033[31;1m{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}\033[0m"
+                    #print(f"{' '.join(binaries[i].bin_fastest_wins)}\n")
+                else:
+                    #print(f"\033[34;1m{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}\033[0m")
+                    binaries[i].fastest_wins_total_print = f"\033[34;1m{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}\033[0m"
+                    #print(f"{' '.join(binaries[i].bin_fastest_wins)}\n")
+            else:
+                #print(f"{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}")
+                binaries[i].fastest_wins_total_print = f"{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}"
+                #print(f"{' '.join(binaries[i].bin_fastest_wins)}\n")
+        else:
+            #print(f"\033[31;1m{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}\033[0m")
+            binaries[i].fastest_wins_total_print = f"\033[31;1m{binaries[i].basename} fastest runs: {binaries[i].bin_fastest_wins_total}/{total_benchmarks}\033[0m"
+            #print(f"{' '.join(binaries[i].bin_fastest_wins)}\n")
+
+    binaries.sort(key=lambda binary: binary.sum_means, reverse=False)
+    for i in range(total_bins):
+        if total_bins > 1:
+            if (i == 0):
+                if (binaries[i].sum_means != binaries[i+1].sum_means):
+                    diff_total = 0.0
+                    diff_total = binaries[i+1].sum_means - binaries[i].sum_means
+                    diff_percent = (diff_total*100)/binaries[i+1].sum_means
+                    #print(f"\n\033[31;1m{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}\033[0m")
+                    #print(f"\033[31;1m-{diff_total:0.5f}ms or +{diff_percent:0.5f}% faster than the second\033[0m")
+                    binaries[i].sum_means_print = f"\n\033[31;1m{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}\n-{diff_total:0.5f}ms or +{diff_percent:0.5f}% faster than the second\033[0m"
+                else:
+                    #print(f"\n\033[34;1m{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}\033[0m")
+                    binaries[i].sum_means_print = f"\n\033[34;1m{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}\033[0m"
+            else:
+                #print(f"\n{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}")
+                binaries[i].sum_means_print = f"\n{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}"
+        else:
+            #print(f"\n{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}")
+            binaries[i].sum_means_print = f"\n{binaries[i].basename} total: {binaries[i].sum_means:0.5f} +/- {binaries[i].sum_std_dev_means:0.5f}"
+
+    log_winner_data = ""
+    binaries.sort(key=lambda binary: binary.bayes_mean.statistic, reverse=False)
+    for i in range(total_bins):
+        if total_bins > 1:
+            if (i == 0):
+                if (binaries[i].bayes_mean.statistic < binaries[i+1].bayes_mean.statistic):
+                    diff_total = 0.0
+                    diff_total = binaries[i+1].bayes_mean.statistic - binaries[i].bayes_mean.statistic
+                    diff_percent = (diff_total*100)/binaries[i+1].bayes_mean.statistic
+                    binaries[i].np_sum_means_print = f"\033[31;1m{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}] -{diff_total:0.5f}ms or +{diff_percent:0.5f}% faster than the second\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]\033[0m"
+                    log_winner_data = f"M={binaries[i].bayes_mean.statistic:0.5f}, 95 percent CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}] -{diff_total:0.5f}ms or +{diff_percent:0.5f} percent faster than the second"
+                else:
+                    binaries[i].np_sum_means_print = f"\033[34;1m{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}]\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]\033[0m"
+            else:
+                binaries[i].np_sum_means_print = f"{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}]\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]"
+        else:
+            binaries[i].np_sum_means_print = f"{binaries[i].basename} total np\nM={binaries[i].bayes_mean.statistic:0.5f}, 95% CI [{binaries[i].bayes_mean.minmax[0]:0.5f}, {binaries[i].bayes_mean.minmax[1]:0.5f}]\nSD={binaries[i].bayes_stddev.statistic:0.5f}, 95% CI [{binaries[i].bayes_stddev.minmax[0]:0.5f}, {binaries[i].bayes_stddev.minmax[1]:0.5f}]\nVAR={binaries[i].bayes_var.statistic:0.5f}, 95% CI [{binaries[i].bayes_var.minmax[0]:0.5f}, {binaries[i].bayes_var.minmax[1]:0.5f}]"
+
+    for binary in binaries:
+        print(binary.wins_total_print)
+        output_buffer.append(binary.wins_total_print)
+        print(f"{' '.join(binary.bin_wins)}\n")
+        output_buffer.append(f"{' '.join(binary.bin_wins)}\n")
+        print(binary.fastest_wins_total_print)
+        output_buffer.append(binary.fastest_wins_total_print)
+        print(f"{' '.join(binary.bin_fastest_wins)}")
+        output_buffer.append(f"{' '.join(binary.bin_fastest_wins)}")
+        print(f"{binary.sum_means_print}\n")
+        output_buffer.append(f"{binary.sum_means_print}\n")
+        #print(f"{binary.np_all_results}")
+        print(f"{binary.np_sum_means_print}\n")
+        output_buffer.append(f"{binary.np_sum_means_print}\n")
+        #print(f"{binary.bayes_mean}\n")
+        #print(f"{binary.bayes_stddev}")
+        #print(f"{binary.bayes_var}\n")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        output_buffer.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+    t, p = stats.ttest_ind(binaries[0].np_all_results, binaries[1].np_all_results, alternative="two-sided", equal_var=False)
+    th = 0.05
+    dispose = p < th
+    print("t = {:.3}, p = {:.3}\n".format(t, p))
+    output_buffer.append("t = {:.3}, p = {:.3}\n".format(t, p))
+    if dispose:
+        print("\033[31;1mSignificant difference between the two benchmarks (p < {})\033[0m\n".format(th))
+        output_buffer.append("\033[31;1mSignificant difference between the two benchmarks (p < {})\033[0m\n".format(th))
+    else:
+        print("\033[34;1mThe two benchmarks are almost the same (p >= {})\033[0m\n".format(th))
+        output_buffer.append("\033[34;1mThe two benchmarks are almost the same (p >= {})\033[0m\n".format(th))
+
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    output_buffer.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    print(f"\n\nNumber of benchmarks: {total_benchmarks}")
+    output_buffer.append(f"\n\nNumber of benchmarks: {total_benchmarks}\n")
+
+    output_buffer_256 = hashlib.new('sha256')
+    for p in output_buffer:
+        output_buffer_256.update(p.encode())
+
+    output_hash = output_buffer_256.hexdigest()
+    figure_path = f"{script_dirname}/{output_hash}.png"
+
+    log_fullpath = f"{script_dirname}/{output_hash}.log"
+    log_full = '\n'.join(output_buffer)
+    write_out(log_fullpath, log_full)
+
+    config = configparser.ConfigParser()
+    data_ini_fullpath = f"{script_dirname}/data.ini"
+    new_raw_fullpath = f"{script_dirname}/{output_hash}.csv"
+    config.read(data_ini_fullpath)
+    config[output_hash] = {}
+    config[output_hash]['flags'] = args.flags
+    config[output_hash]['bolt_flags'] = args.bolt_flags
+    config[output_hash]['log'] = log_fullpath
+    shutil.copy2(args.raw, new_raw_fullpath)
+    config[output_hash]['data_raw'] = new_raw_fullpath
+    config[output_hash]['figure'] = figure_path
+    for binary in binaries:
+        sha256 = f"{binary.sha256}"
+        config[output_hash][f"{binary.basename}_name"] = binary.basename
+        config[output_hash][f"{binary.basename}_fullpath"] = binary.fullpath
+        config[output_hash][f"{binary.basename}_sha256"] = sha256
+
+    config[output_hash]['winner'] = binaries[0].basename
+    config[output_hash]['winner_mean'] = f"{binaries[0].bayes_mean.statistic:0.5f}"
+    config[output_hash]['winner_data'] = log_winner_data
+    config[output_hash]['significant'] = str(dispose)
+    with open(data_ini_fullpath, 'w') as configfile:
+        config.write(configfile)
+
+
+
+    #pd.set_option("display.max_rows", None, "display.max_columns", None)
+    #pd.set_option('display.max_columns', None)  # or 1000
+    #pd.set_option('display.max_rows', None)  # or 1000
+    #pd.set_option('display.max_colwidth', None)  # or 199
+    #print(pd_all_results)
+    #print(f"count: {pd_all_results['milliseconds'].count()}")
+
+    #sns.set_theme()
+    #sns.set(rc={"figure.dpi":200, 'savefig.dpi':200})
+    sns.set_style("darkgrid", {"axes.facecolor": ".9"})
+    sns.set_context("notebook", rc={"grid.linewidth": 0.4, "figure.dpi" : 200, "savefig.dpi" : 200})
+    fig = plt.figure(figsize=(3560/200, 1212/200), dpi=200)
+    ax1 = fig.add_subplot(111)
+    fig.set_dpi(200)
+
+    #ax1 = sns.histplot(ax=ax1, data=pd_all_results, x="milliseconds", hue="binary", element="step", stat="probability", line_kws={'linewidth': 0.5}, kde=True, bins=pd_all_results["milliseconds"].count())
+    sns.histplot(ax=ax1, data=pd_all_results, x="milliseconds", hue="binary", stat="count", line_kws={'linewidth': 0.4}, linewidth=0.4, kde=True, element="step", bins="fd")
+
+    ax1.set_ylabel("count", fontsize= 6)
+    ax1.set_xlabel("milliseconds", fontsize= 6)
+    plt.title("benchsuite", fontsize= 6)
+    plt.xticks(fontsize=5)
+    plt.yticks(fontsize=5)
+
+    arr = (seg[0][1] for seg in ax1.collections[0].get_paths()[0].iter_segments())
+    #y_values = np.array(tuple(arr), dtype = np.float64)
+    histplot_y_max = np.amax(np.array(tuple(arr), dtype = np.float64))
+    #print(f"histplot_y_max: {histplot_y_max:0.5f}")
+
+    ax1.axvline(x=binaries[0].bayes_mean.statistic, ymin=0, ymax=1, color='red', label=f"{binaries[0].basename} mean", linewidth=0.3, linestyle='--', zorder=5)
+    ax1.axvline(x=binaries[1].bayes_mean.statistic, ymin=0, ymax=1, color='blue', label=f"{binaries[1].basename} mean", linewidth=0.3, linestyle='--', zorder=5)
+
+    handles1, labels1 = ax1.get_legend_handles_labels()
+    legend = ax1.get_legend()
+    handles2 = legend.legendHandles
+    #print(handles1)
+    #print(labels1)
+    #print(handles2)
+    handles2 += handles1
+    legend.remove()
+    ax1.legend(handles2, [f"{binaries[0].basename}", f"{binaries[1].basename}", f"{binaries[0].basename} mean", f"{binaries[1].basename} mean"])
+
+    ax1.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+    ax1.set_xticks(np.arange(0, pd_all_results["milliseconds"].max()+0.01, 0.01))
+    ax1.set_yticks(np.arange(0, histplot_y_max+5, 5))
+    ax1.set(xlim=(-0.01, np.around(pd_all_results["milliseconds"].max()+0.01, 2)), ylim=(0,histplot_y_max+5))
+    #print(f"ax1.get_xlim(): {ax1.get_xlim()}")
+    #print(f"ax1.get_ylim(): {ax1.get_ylim()}")
+    #print(f"ax1.get_xticks(): {ax1.get_xticks()}")
+    #print(f"ax1.get_yticks(): {ax1.get_yticks()}")
+
+
+    mean_zoom = np.array(0.0, dtype = np.float64)
+    if binaries[0].bayes_mean.statistic > binaries[1].bayes_mean.statistic:
+        mean_zoom = np.array(binaries[1].bayes_mean.statistic, dtype = np.float64)
+    else:
+        mean_zoom = np.array(binaries[0].bayes_mean.statistic, dtype = np.float64)
+
+    ax2 = plt.axes([mean_zoom*5.55, 0.76, .1, .1], facecolor='khaki')
+    for spine in ax2.spines.values():
+        spine.set_edgecolor('black')
+        spine.set_linewidth(0.7)
+    ax2.grid(True, color ="black", alpha=0.3)
+
+    ax2.axvline(x=binaries[0].bayes_mean.statistic, ymin=0, ymax=1, color='red', linewidth=0.4, linestyle='--', zorder=5)
+    ax2.axvline(x=binaries[1].bayes_mean.statistic, ymin=0, ymax=1, color='blue', linewidth=0.4, linestyle='--', zorder=5)
+
+    ax2.xaxis.set_major_formatter(FormatStrFormatter('%.4f'))
+    ax2.set_xticks(np.arange(binaries[0].bayes_mean.statistic-0.001, binaries[0].bayes_mean.statistic+0.001, 0.0005))
+    ax2.set(xlim=(binaries[0].bayes_mean.statistic-0.001, binaries[0].bayes_mean.statistic+0.001), ylim=(ax1.get_ylim()[1]-20, ax1.get_ylim()[1]-10))
+    ax2.xaxis.set_ticks_position('top')
+    ax2.tick_params(pad=0.1, width=0.5, length=2.5, direction='out')
+    plt.setp(ax2.get_yticklabels(), visible=False)
+    plt.xticks(fontsize=4)
+    plt.yticks(fontsize=4)
+
+    #mark_inset(ax1, ax2, loc1=3, loc2=2, fc="none", ec="black", linewidth=0.4, zorder=2)
+    mark_inset(ax1, ax2, loc1=4, loc2=2, fc="none", ec="black", linewidth=0.3, zorder=1)
+
+    ax1.autoscale_view()
+    plt.tight_layout(pad=0.1)
+    fig.subplots_adjust(left=0.020)
+    plt.savefig(figure_path, dpi=200, bbox_inches="tight")
+    #print(sns.axes_style())
+    plt.show()
+
 
 
 if __name__ == '__main__':

@@ -1,0 +1,161 @@
+subtitles_en_literal1 (pattern: Sherlock Holmes)
+------------------------------------------------
+rg        0.04079 +/- 0.00473 (lines: 497)
+rg.bolt*  0.03810 +/- 0.00019 (lines: 497)*
+
+subtitles_en_literal2 (pattern: Sherlock Holmes)
+------------------------------------------------
+rg (no mmap)*       0.04723 +/- 0.00016 (lines: 497)*
+rg.bolt (no mmap)   0.04753 +/- 0.00026 (lines: 497)
+
+subtitles_en_literal3 (pattern: Sherlock Holmes)
+------------------------------------------------
+rg (lines)        0.05945 +/- 0.00047 (lines: 497)
+rg.bolt (lines)*  0.05891 +/- 0.00008 (lines: 497)*
+
+subtitles_en_literal4 (pattern: Sherlock Holmes)
+------------------------------------------------
+rg UTF-16*       0.12062 +/- 0.00853 (lines: 497)
+rg.bolt UTF-16   0.11731 +/- 0.00059 (lines: 497)*
+
+subtitles_en_literal5 (pattern: Sherlock Holmes)
+------------------------------------------------
+rg (no mmap) UTF-16*       0.12727 +/- 0.00015 (lines: 497)*
+rg.bolt (no mmap) UTF-16   0.13146 +/- 0.00168 (lines: 497)
+
+subtitles_en_literal6 (pattern: Sherlock Holmes)
+------------------------------------------------
+rg (lines) UTF-16        0.12113 +/- 0.00018 (lines: 497)
+rg.bolt (lines) UTF-16*  0.12104 +/- 0.00034 (lines: 497)*
+
+subtitles_en_literal_casei1 (pattern: Sherlock Holmes)
+------------------------------------------------------
+rg        0.07970 +/- 0.00146 (lines: 500)
+rg.bolt*  0.07564 +/- 0.00005 (lines: 500)*
+
+subtitles_en_literal_casei2 (pattern: Sherlock Holmes)
+------------------------------------------------------
+rg        0.09811 +/- 0.00004 (lines: 500)
+rg.bolt*  0.09722 +/- 0.00190 (lines: 500)*
+
+subtitles_en_literal_casei3 (pattern: Sherlock Holmes)
+------------------------------------------------------
+rg UTF-16        0.16173 +/- 0.00053 (lines: 500)
+rg.bolt UTF-16*  0.15993 +/- 0.00011 (lines: 500)*
+
+subtitles_en_literal_casei4 (pattern: Sherlock Holmes)
+------------------------------------------------------
+rg UTF-16        0.16543 +/- 0.00009 (lines: 500)
+rg.bolt UTF-16*  0.16386 +/- 0.00008 (lines: 500)*
+
+subtitles_en_literal_word1 (pattern: Sherlock Holmes)
+-----------------------------------------------------
+rg (ASCII)        0.05905 +/- 0.00005 (lines: 497)*
+rg.bolt (ASCII)*  0.05909 +/- 0.00025 (lines: 497)
+
+subtitles_en_literal_word2 (pattern: Sherlock Holmes)
+-----------------------------------------------------
+rg (ASCII) UTF-16*       0.12103 +/- 0.00041 (lines: 497)
+rg.bolt (ASCII) UTF-16   0.12082 +/- 0.00011 (lines: 497)*
+
+subtitles_en_literal_word3 (pattern: Sherlock Holmes)
+-----------------------------------------------------
+rg        0.06181 +/- 0.00003 (lines: 497)
+rg.bolt*  0.06166 +/- 0.00005 (lines: 497)*
+
+subtitles_en_literal_word4 (pattern: Sherlock Holmes)
+-----------------------------------------------------
+rg UTF-16        0.12411 +/- 0.00049 (lines: 497)
+rg.bolt UTF-16*  0.12323 +/- 0.00063 (lines: 497)*
+
+subtitles_en_alternate1 (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+----------------------------------------------------------------------------------------------------------------
+rg (lines)        0.08314 +/- 0.00006 (lines: 672)
+rg.bolt (lines)*  0.08288 +/- 0.00004 (lines: 672)*
+
+subtitles_en_alternate2 (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+----------------------------------------------------------------------------------------------------------------
+rg        0.06301 +/- 0.00028 (lines: 672)
+rg.bolt*  0.06244 +/- 0.00007 (lines: 672)*
+
+subtitles_en_alternate3 (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+----------------------------------------------------------------------------------------------------------------
+rg (lines) UTF-16        0.14890 +/- 0.00009 (lines: 672)*
+rg.bolt (lines) UTF-16*  0.14896 +/- 0.00009 (lines: 672)
+
+subtitles_en_alternate4 (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+----------------------------------------------------------------------------------------------------------------
+rg UTF-16        0.14492 +/- 0.00020 (lines: 672)*
+rg.bolt UTF-16*  0.14500 +/- 0.00028 (lines: 672)
+
+subtitles_en_alternate_casei1 (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+----------------------------------------------------------------------------------------------------------------------
+rg*       0.16608 +/- 0.00004 (lines: 675)*
+rg.bolt   0.16887 +/- 0.00008 (lines: 675)
+
+subtitles_en_alternate_casei2 (pattern: Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty)
+----------------------------------------------------------------------------------------------------------------------
+rg UTF-16*       0.24132 +/- 0.00009 (lines: 675)*
+rg.bolt UTF-16   0.24576 +/- 0.00010 (lines: 675)
+
+subtitles_en_surrounding_words1 (pattern: \w+\s+Holmes\s+\w+)
+-------------------------------------------------------------
+rg        0.06231 +/- 0.00007 (lines: 220)
+rg.bolt*  0.06217 +/- 0.00007 (lines: 220)*
+
+subtitles_en_surrounding_words2 (pattern: \w+\s+Holmes\s+\w+)
+-------------------------------------------------------------
+rg (ASCII)        0.05974 +/- 0.00003 (lines: 220)
+rg.bolt (ASCII)*  0.05966 +/- 0.00004 (lines: 220)*
+
+subtitles_en_surrounding_words3 (pattern: \w+\s+Holmes\s+\w+)
+-------------------------------------------------------------
+rg UTF-16*       0.12304 +/- 0.00011 (lines: 220)*
+rg.bolt UTF-16   0.12347 +/- 0.00006 (lines: 220)
+
+subtitles_en_surrounding_words4 (pattern: \w+\s+Holmes\s+\w+)
+-------------------------------------------------------------
+rg (ASCII) UTF-16*       0.12058 +/- 0.00006 (lines: 220)*
+rg.bolt (ASCII) UTF-16   0.12061 +/- 0.00005 (lines: 220)
+
+subtitles_en_no_literal1 (pattern: \w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5})
+-----------------------------------------------------------------------------------------
+rg        0.66995 +/- 0.00025 (lines: 3)
+rg.bolt*  0.66668 +/- 0.00025 (lines: 3)*
+
+subtitles_en_no_literal2 (pattern: \w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5})
+-----------------------------------------------------------------------------------------
+rg (ASCII)        0.58491 +/- 0.00040 (lines: 3)
+rg.bolt (ASCII)*  0.58326 +/- 0.00016 (lines: 3)*
+
+subtitles_en_no_literal3 (pattern: \w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5})
+-----------------------------------------------------------------------------------------
+rg UTF-16        0.75195 +/- 0.00021 (lines: 3)
+rg.bolt UTF-16*  0.75031 +/- 0.00025 (lines: 3)*
+
+subtitles_en_no_literal4 (pattern: \w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5}\s+\w{5})
+-----------------------------------------------------------------------------------------
+rg (ASCII) UTF-16        0.66796 +/- 0.00057 (lines: 3)
+rg.bolt (ASCII) UTF-16*  0.66734 +/- 0.00022 (lines: 3)*
+
+
+rg total wins: 9/28
+subtitles_en_literal2 subtitles_en_literal5 subtitles_en_literal_word1 subtitles_en_alternate3 subtitles_en_alternate4 subtitles_en_alternate_casei1 subtitles_en_alternate_casei2 subtitles_en_surrounding_words3 subtitles_en_surrounding_words4
+
+rg fastest runs: 8/28
+subtitles_en_literal2 subtitles_en_literal4 subtitles_en_literal5 subtitles_en_literal_word2 subtitles_en_alternate_casei1 subtitles_en_alternate_casei2 subtitles_en_surrounding_words3 subtitles_en_surrounding_words4
+
+rg total: 5.27528 +/- 0.01980
+
+
+
+rg.bolt total wins: 19/28
+subtitles_en_literal1 subtitles_en_literal3 subtitles_en_literal4 subtitles_en_literal6 subtitles_en_literal_casei1 subtitles_en_literal_casei2 subtitles_en_literal_casei3 subtitles_en_literal_casei4 subtitles_en_literal_word2 subtitles_en_literal_word3 subtitles_en_literal_word4 subtitles_en_alternate1 subtitles_en_alternate2 subtitles_en_surrounding_words1 subtitles_en_surrounding_words2 subtitles_en_no_literal1 subtitles_en_no_literal2 subtitles_en_no_literal3 subtitles_en_no_literal4
+
+rg.bolt fastest runs: 20/28
+subtitles_en_literal1 subtitles_en_literal3 subtitles_en_literal6 subtitles_en_literal_casei1 subtitles_en_literal_casei2 subtitles_en_literal_casei3 subtitles_en_literal_casei4 subtitles_en_literal_word1 subtitles_en_literal_word3 subtitles_en_literal_word4 subtitles_en_alternate1 subtitles_en_alternate2 subtitles_en_alternate3 subtitles_en_alternate4 subtitles_en_surrounding_words1 subtitles_en_surrounding_words2 subtitles_en_no_literal1 subtitles_en_no_literal2 subtitles_en_no_literal3 subtitles_en_no_literal4
+
+rg.bolt total: 5.26323 +/- 0.00809
+-0.01205ms or +0.22842% faster
+
+Number benchmarks: 28

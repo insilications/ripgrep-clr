@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+./rg 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg --no-mmap 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg --no-mmap 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg -i 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -i -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -i 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg -i -n 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg -n '(?-u:\b)Sherlock Holmes(?-u:\b)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -nw 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n '(?-u:\b)Sherlock Holmes(?-u:\b)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg -nw 'Sherlock Holmes' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg -n 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg -n -i 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n -i 'Sherlock Holmes|John Watson|Irene Adler|Inspector Lestrade|Professor Moriarty' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg -n '\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n '(?-u)\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n '\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg -n '(?-u)\w+\s+Holmes\s+\w+' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg -n '\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n '(?-u)\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg -n '\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg -n '(?-u)\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}\s+\w{4}' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+
+./rg
+./rg --help
+./rg --pcre2 --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg --pcre2 --count-matches 'test(?=ing)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg --pcre2 --count-matches '(?<=pro)testing' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en.txt
+./rg --pcre2 --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg --pcre2 --count-matches 'test(?=ing)' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg --pcre2 --count-matches '(?<=pro)testing' /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+./rg --count-matches test /insilications/apps/ripgrep-clr/benchsuite/subtitles/en16.txt
+sleep 2;
+OUTPUT_DIR=/var/tmp/pgo/
+declare -a MERGE_LIST;
+readarray -d '' profrawlist < <(find "${OUTPUT_DIR}" -type f -iname \*.profraw -print0 | sort -zV);
+if [[ "${#profrawlist[@]}" > 0 ]]; then
+    for inputfilelbr in "${profrawlist[@]}"; do
+        if [[ -s "$inputfilelbr" ]]; then
+            MERGE_LIST+=("$inputfilelbr");
+        else
+            mv "$inputfilelbr" "$inputfilelbr-empty";
+            echo "$inputfilelbr is empty. Renamed.";
+        fi
+    done
+#     for i in "${!MERGE_LIST[@]}"; do
+#         printf '%s\n' "${MERGE_LIST[i]}";
+#     done
+#     echo "total: ${#MERGE_LIST[@]}"
+    if [[ "${#MERGE_LIST[@]}" > 0 ]]; then
+        llvm-profdata merge -o ${OUTPUT_DIR}rustmerged.profdata ${MERGE_LIST[*]};
+    fi
+fi
